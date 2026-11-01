@@ -1,7 +1,7 @@
 #include <Arduino.h>
-#include <UniversalTelegramBot.h>
 #include <ThingSpeak.h>
 #include "WiFiConection.h"
+#include "Telegram.h"
 
 // put function declarations here:
 const short LED_VERDE = 23;
@@ -15,6 +15,7 @@ const char *API_KEY_TS = "6O8Z700NWK3XDHMY"
 WifiConnection wifi(SSID, PASS);
 WiFiClientSecure client;
 UniversalTelegramBot bot(API_KEY_TELEGRAM, client);
+
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
@@ -34,21 +35,6 @@ void setup() {
 }
 
 void loop() {
-
-  // Parte para leer el sensor
-  if(millis()-time_ant >= INTERVAL){
-    float t = sensor.readTemperature();
-    float h = sensor.readHumidity();
-
-    if(isnan(t) || isnan(h)){
-      Serial.print("Error en la lectura del sensor DHT");
-      return;
-    }
-    ThingSpeak.setField(1, t)
-    ThingSpeak.setField(2, h)
-    Serial.printf("Enviando datos | Temp: %.2f °C y Hum: %.2f %", t, h);
-    ThingSpeak.writeFields(CHANNEL_ID, API_KEY);
-  }
 
   // Parte para leer msjs de telegram
   if (millis() - ant > INTERVAL){
