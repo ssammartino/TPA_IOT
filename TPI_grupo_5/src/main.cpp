@@ -1,94 +1,122 @@
 #include <Arduino.h>
-#include <ThingSpeak.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SH110X.h>
+#include "SensorDHT.h"
 #include "WiFiConection.h"
-#include "Telegram.h"
+#include "BotTelegram.h"
 
-// put function declarations here:
+const short PIN_DHT = 33;
+const short PIN_POT = 32;
 const short LED_VERDE = 23;
 const short LED_AZUL = 2;
-const short CHANNEL_TS = 3561793;
-const short INTERVAL = 1000;
-const char *SSID = "Wokwi-GUEST"; // Red WiFi
-const char *PASS = ""; 
+const short OLED_SDA = 21;
+const short OLED_SCL = 22;
+const unsigned long INTERVAL_SENSORES = 2000;
+const unsigned long INTERVAL_RECONEXION = 15000;
+
+const char *SSID = "Wokwi-GUEST";
+const char *PASS = "";
 const char *API_KEY_TELEGRAM = "8931640257:AAHYxnhJPxTUbLoU6N5WyVL5yoZpiE8moMI";
-const char *API_KEY_TS = "6O8Z700NWK3XDHMY"
+
+SensorDHT sensor(PIN_DHT);
 WifiConnection wifi(SSID, PASS);
-WiFiClientSecure client;
-UniversalTelegramBot bot(API_KEY_TELEGRAM, client);
+BotTelegram telegram(API_KEY_TELEGRAM);
+// Mismo controlador y resolucion que el ejemplo OLED de Clase03.
+Adafruit_SH1106G display(128, 64, &Wire, -1);
+
+bool telegramConectado = false;
+unsigned long ultimaLectura = 0;
+unsigned long ultimoIntento = 0;
+
+float leerVoltajePot();
+void inicializarPerifericos();
+bool conectarWiFi();
+void comprobarSensores();
 
 void setup() {
-  // put your setup code here, to run once:
   Serial.begin(9600);
-  pinMode(LED_VERDE, OUTPUT);
-  pinMode(LED_AZUL, OUTPUT);
-  
-  wifi.connect();
-  // Bucle bloqueante hasta establecer conexión WiFi
-  if (wifi.connect()) {
-    Serial.println(wifi.localIP());
-  } else {
-    Serial.println("No se pudo conectar al WiFi");
-  }
-  
+  inicializarPerifericos();
 
-  
+  if (conectarWiFi()) {
+    telegramConectado = telegram.iniciar();
+  }
+  ultimoIntento = millis();
 }
 
 void loop() {
+  comprobarSensores();
 
-  // Parte para leer msjs de telegram
-  if (millis() - ant > INTERVAL){
-    ant = millis()
-    int n = bot.getUpdates(bot.last_message_received + 1); // Consulta a telegram cuantos msjs nuevos llegaron
-    while(n){ //mientras haya mensajes
-      procesarMensajes(n);
-      n = bot.getUpdates(bot.last_message_received + 1); // vuelve a llamar para ver si se mandaron msjs nuevos mientras se ejecutaba procesarMensajes
+  if (!wifi.connected()) {
+    telegramConectado = false;
+  }
+
+  if (!telegramConectado && millis() - ultimoIntento >= INTERVAL_RECONEXION) {
+    ultimoIntento = millis();
+    if (wifi.connected() || conectarWiFi()) {
+      telegramConectado = telegram.iniciar();
     }
+  }
 
-
+  if (telegramConectado) {
+    telegram.actualizar();
   }
 }
 
-// put function definitions here:
-int myFunction(int x, int y) {
-  return x + y;
+void inicializarPerifericos() {
+  pinMode(LED_VERDE, OUTPUT);
+  pinMode(LED_AZUL, OUTPUT);
+  digitalWrite(LED_VERDE, LOW);
+  digitalWrite(LED_AZUL, LOW);
+
+  pinMode(PIN_POT, INPUT);
+  analogReadResolution(12);
+  sensor.iniciar();
+
+  Wire.begin(OLED_SDA, OLED_SCL);
+  if (display.begin(0x3c, true)) {
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SH110X_WHITE);
+    display.setCursor(0, 0);
+    display.println("TPI Grupo 5");
+    display.println("ESP32 iniciado");
+    display.display();
+    Serial.println("OLED inicializado en 0x3c.");
+  } else {
+    Serial.println("No se pudo inicializar el OLED.");
+  }
 }
 
-
-void procesarMensajes(int n){
-    for (size_t i = 0; i < n; i++)
-    {
-      String chat_id = bot.messages[i].chat_id;
-      String text = bot.messages[i].text;
-      Serial.println("Mensaje recibido: " + text );
-      
-      //codigo ESP32:
-      if(text == "/start"){
-        bot.sendMessage(chat_id, "Bienvenido al Bot ESP32\n");
-        bot.sendMessage(chat_id, "COMANDO LedON enciende el LED\n");
-        bot.sendMessage(chat_id, "COMANDO LedOFF apaga el LED");      
-      } else if(text == "/thingup"){
-        if(millis()-time_ant >= INTERVAL){
-        float t = sensor.temperatura();
-        float h = sensor.humedad();
-
-        if(isnan(t) || isnan(h)){
-          Serial.print("Error en la lectura del sensor DHT");
-          return;
-        }
-        ThingSpeak.setField(1, t)
-        ThingSpeak.setField(2, h)
-        Serial.printf("Enviando datos | Temp: %.2f °C y Hum: %.2f %", t, h);
-        ThingSpeak.writeFields(CHANNEL_ID, API_KEY);
-      }
-        bot.sendMessage(chat_id, "LED encendido!");
-      } else if(text == "LedOFF"){
-        digitalWrite(LED, LOW);
-        bot.sendMessage(chat_id, "LED apagado!");
-      } else{
-        bot.sendMessage(chat_id, "Comando no reconocido");
-      }      
-    }
+bool conectarWiFi() {
+  Serial.println("Conectando a WiFi...");
+  if (!wifi.connect()) {
+    Serial.println("No se pudo conectar a WiFi. Se reintentara.");
+    return false;
+  }
+  Serial.println("WiFi conectado. IP:");
+  Serial.println(wifi.localIP());
+  return true;
 }
 
-//transformarValores (de 2^nosecuanto a °C, y de 2^ns a %)
+float leerVoltajePot() {
+  // Conversion de 12 bits a voltaje usada en Clase02.
+  const int lecturaADC = analogRead(PIN_POT);
+  return (lecturaADC * 3.3) / 4095;
+}
+
+void comprobarSensores() {
+  if (millis() - ultimaLectura < INTERVAL_SENSORES) {
+    return;
+  }
+  ultimaLectura = millis();
+
+  const float temperatura = sensor.temperatura();
+  const float humedad = sensor.humedad();
+  if (isnan(temperatura) || isnan(humedad)) {
+    Serial.println("Error de lectura del DHT22.");
+  } else {
+    Serial.printf("DHT22 | Temperatura: %.1f C | Humedad: %.1f %%\r\n", temperatura, humedad);
+  }
+  Serial.printf("Potenciometro GPIO 32: %.2f V\r\n", leerVoltajePot());
+}

@@ -7,6 +7,7 @@
  class SensorDHT{
     public:
         SensorDHT(short pin);
+        void iniciar();
         float temperatura();
         float humedad();
     private:

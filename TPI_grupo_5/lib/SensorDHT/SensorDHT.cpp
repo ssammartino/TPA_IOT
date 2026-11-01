@@ -1,6 +1,9 @@
 #include "SensorDHT.h"
 
 SensorDHT::SensorDHT(short pin): sensor(pin, DHT22){
+}
+
+void SensorDHT::iniciar(){
     sensor.begin();
 }
 
