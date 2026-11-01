@@ -6,19 +6,26 @@
 #include <WiFiClientSecure.h>
 #include <UniversalTelegramBot.h>
 #include "SensorDHT.h"
+#include "ControlLed.h"
+#include "Display.h"
+#include "Potenciometro.h"
+#include "ThingSpeak.h"
+
 
 // Estas funciones siguen definidas en main.cpp, como en el archivo original.
 // Las declaramos aquí para poder llamarlas desde BotTelegram.cpp.
-float leerVoltajePot();
-bool enviarThingSpeak(float temperatura, float humedad);
-void registrarComando(const String &cmd);
-void mostrarEnDisplay(const String &l1, const String &l2);
-String estadoLed(short pin);
+// float leerVoltajePot();
+// bool enviarThingSpeak(float temperatura, float humedad);
+// void registrarComando(const String &cmd);
+// void mostrarEnDisplay(const String &l1, const String &l2);
+// String estadoLed(short pin);
 
 class BotTelegram {
   public:
-    BotTelegram(const char *token, SensorDHT &sensor, float &umbralActual,
-                bool &automatico, short pinVerde, short pinAzul);
+    BotTelegram(const char *token, SensorDHT &sensor, Potenciometro &pot,
+                ControlLed &ledVerde, ControlLed &ledAzul,
+                Display &display, ThingSpeak &thingspeak,
+                float &umbralActual, bool &automatico);
     void iniciar();
     void actualizar();
 
@@ -26,6 +33,11 @@ class BotTelegram {
     WiFiClientSecure client;
     UniversalTelegramBot bot;
     SensorDHT &dht;
+    Potenciometro &pot;
+    ControlLed &ledVerde;
+    ControlLed &ledAzul;
+    Display &display;
+    ClienteThingSpeak &thingspeak;
     float &umbral;
     bool &modoAuto;
     short LED_VERDE;
@@ -44,7 +56,7 @@ class BotTelegram {
     void cmdAuto(const String &chatId, bool activar);
     void cmdThingUp(const String &chatId);
     void cmdDisplay(const String &chatId, const String &sub);
-    void cmdLed(const String &chatId, short pin, bool encender);
+    void cmdLed(const String &chatId, ControlLed &led, const String &nombre, bool encender);
 };
 
 #endif

@@ -1,94 +1,89 @@
 #include <Arduino.h>
 #include <ThingSpeak.h>
 #include "WiFiConection.h"
-#include "Telegram.h"
+#include "BotTelegram.h"
+#include "SensorDHT.h"
 
-// put function declarations here:
+// PINES
 const short LED_VERDE = 23;
 const short LED_AZUL = 2;
-const short CHANNEL_TS = 3561793;
-const short INTERVAL = 1000;
+const short PIN_DHT = 33;
+const short PIN_POT = 32;
+
+// ThingSpeak
+const unsigned long CHANNEL_TS = 3561793;
+const char *API_KEY_TS = "6O8Z700NWK3XDHMY";
+
+//WiFi
 const char *SSID = "Wokwi-GUEST"; // Red WiFi
 const char *PASS = ""; 
+
+//Telegram
 const char *API_KEY_TELEGRAM = "8931640257:AAHYxnhJPxTUbLoU6N5WyVL5yoZpiE8moMI";
-const char *API_KEY_TS = "6O8Z700NWK3XDHMY"
+
+//Umbral potenciometro
+float umbral = 0.5;
+bool modoAuto = false;
+
+// ===== OLED y buffer de últimos 3 comandos =====
+Adafruit_SSD1306 oled(128, 64, &Wire, -1);
+String ultimos[3] = {"", "", ""};
+
+
+//Iniciar objetos
 WifiConnection wifi(SSID, PASS);
 WiFiClientSecure client;
-UniversalTelegramBot bot(API_KEY_TELEGRAM, client);
+SensorDHT sensor(PIN_DHT);
+BotTelegram bot(API_KEY_TELEGRAM, sensor, umbral, modoAuto, LED_VERDE, LED_AZUL);
 
 void setup() {
-  // put your setup code here, to run once:
-  Serial.begin(9600);
+
+  Serial.begin(9600); //Definir baudios
+
+  //Modos de los pines
   pinMode(LED_VERDE, OUTPUT);
   pinMode(LED_AZUL, OUTPUT);
   
+  //Iniciar oled
+  oled.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  mostrarEnDisplay("Conectando a WiFi...");
+
+  //Para conectar a WiFi
   wifi.connect();
   // Bucle bloqueante hasta establecer conexión WiFi
   if (wifi.connect()) {
     Serial.println(wifi.localIP());
+    mostrarEnDisplay("Conexion Exitosa a WiFi :D");
+
   } else {
     Serial.println("No se pudo conectar al WiFi");
+    mostrarEnDisplay("Conectando fallida a WiFi X");
+    return;
   }
-  
 
+  ThingSpeak.begin(client);
+  bot.iniciar();
   
+   // Hora necesaria para validar el certificado de Telegram
+  configTime(0, 0, "pool.ntp.org");
+  time_t ahora = time(nullptr);
+  while (ahora < 1700000000) {
+    delay(200);
+    ahora = time(nullptr);
+  }
+
 }
 
 void loop() {
 
   // Parte para leer msjs de telegram
-  if (millis() - ant > INTERVAL){
-    ant = millis()
-    int n = bot.getUpdates(bot.last_message_received + 1); // Consulta a telegram cuantos msjs nuevos llegaron
-    while(n){ //mientras haya mensajes
-      procesarMensajes(n);
-      n = bot.getUpdates(bot.last_message_received + 1); // vuelve a llamar para ver si se mandaron msjs nuevos mientras se ejecutaba procesarMensajes
-    }
+  if (!wifi.connected()) return;
+  bot.actualizar();
 
+  if (modoAuto) {
+    digitalWrite(LED_AZUL, leerVoltajePot() > umbral ? HIGH : LOW);
+  }
 
   }
-}
-
-// put function definitions here:
-int myFunction(int x, int y) {
-  return x + y;
-}
 
 
-void procesarMensajes(int n){
-    for (size_t i = 0; i < n; i++)
-    {
-      String chat_id = bot.messages[i].chat_id;
-      String text = bot.messages[i].text;
-      Serial.println("Mensaje recibido: " + text );
-      
-      //codigo ESP32:
-      if(text == "/start"){
-        bot.sendMessage(chat_id, "Bienvenido al Bot ESP32\n");
-        bot.sendMessage(chat_id, "COMANDO LedON enciende el LED\n");
-        bot.sendMessage(chat_id, "COMANDO LedOFF apaga el LED");      
-      } else if(text == "/thingup"){
-        if(millis()-time_ant >= INTERVAL){
-        float t = sensor.temperatura();
-        float h = sensor.humedad();
-
-        if(isnan(t) || isnan(h)){
-          Serial.print("Error en la lectura del sensor DHT");
-          return;
-        }
-        ThingSpeak.setField(1, t)
-        ThingSpeak.setField(2, h)
-        Serial.printf("Enviando datos | Temp: %.2f °C y Hum: %.2f %", t, h);
-        ThingSpeak.writeFields(CHANNEL_ID, API_KEY);
-      }
-        bot.sendMessage(chat_id, "LED encendido!");
-      } else if(text == "LedOFF"){
-        digitalWrite(LED, LOW);
-        bot.sendMessage(chat_id, "LED apagado!");
-      } else{
-        bot.sendMessage(chat_id, "Comando no reconocido");
-      }      
-    }
-}
-
-//transformarValores (de 2^nosecuanto a °C, y de 2^ns a %)

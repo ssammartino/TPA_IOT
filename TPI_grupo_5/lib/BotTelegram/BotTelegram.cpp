@@ -5,7 +5,7 @@ BotTelegram::BotTelegram(const char *token, SensorDHT &sensor,
                          short pinVerde, short pinAzul)
     : bot(token, client), dht(sensor), umbral(umbralActual),
       modoAuto(automatico) {
-  LED_VERDE = pinVerde;
+  ledVerde, "verde" = pinVerde;
   LED_AZUL = pinAzul;
 }
 
@@ -52,13 +52,13 @@ void BotTelegram::procesarComando(const String &chatId, const String &texto) {
   } else if (texto.startsWith("/display")) {
     cmdDisplay(chatId, texto.substring(8));
   } else if (texto == "/verdeon") {
-    cmdLed(chatId, LED_VERDE, true);
+    cmdLed(chatId, ledVerde, "verde", true);
   } else if (texto == "/verdeoff") {
-    cmdLed(chatId, LED_VERDE, false);
+    cmdLed(chatId, ledVerde, "verde", false);
   } else if (texto == "/azulon") {
-    cmdLed(chatId, LED_AZUL, true);
+    cmdLed(chatId, ledAzul, "azul", true);
   } else if (texto == "/azuloff") {
-    cmdLed(chatId, LED_AZUL, false);
+    cmdLed(chatId, ledAzul, "azul", false);
   } else {
     bot.sendMessage(chatId, "❓ Comando no reconocido. Enviá /start para ver el menú.", "");
   }
@@ -83,7 +83,7 @@ void BotTelegram::cmdStart(const String &chatId) {
   menu += "/displaydht - Temperatura y humedad\n\n";
   menu += "✍️ <i>Escribí los comandos como texto plano.</i>";
   bot.sendMessage(chatId, menu, "HTML");
-  registrarComando("/start");
+  display.registrarComando("/start");
 }
 
 void BotTelegram::cmdUmbral(const String &chatId, const String &texto) {
@@ -100,7 +100,7 @@ void BotTelegram::cmdUmbral(const String &chatId, const String &texto) {
     bot.sendMessage(chatId, "⚠️ Valor fuera de rango [1; 1.5] V. Se restablece el umbral a " +
                                 String(umbral, 2) + " V", "");
   }
-  registrarComando("/umbral " + String(umbral, 2));
+  display.registrarComando("/umbral " + String(umbral, 2));
 }
 
 void BotTelegram::cmdEstado(const String &chatId) {
@@ -114,13 +114,13 @@ void BotTelegram::cmdEstado(const String &chatId) {
     msg += "🌡️ Temperatura: " + String(temperatura, 1) + " °C\n";
     msg += "💧 Humedad: " + String(humedad, 1) + " %\n";
   }
-  msg += "🎚️ Potenciómetro: " + String(leerVoltajePot(), 2) + " V\n";
+  msg += "🎚️ Potenciómetro: " + String(pot.leerVoltaje(), 2) + " V\n";
   msg += "📏 Umbral: " + String(umbral, 2) + " V\n";
-  msg += "🟢 LED verde: " + estadoLed(LED_VERDE) + "\n";
-  msg += "🔵 LED azul: " + estadoLed(LED_AZUL) + "\n";
+  msg += "🟢 LED verde: " + ledVerde.estado() + "\n";
+  msg += "🔵 LED azul: " + ledAzul.estado() + "\n";
   msg += "⚙️ Modo: " + String(modoAuto ? "automático" : "manual");
   bot.sendMessage(chatId, msg, "HTML");
-  registrarComando("/estado");
+  display.registrarComando("/estado");
 }
 
 void BotTelegram::cmdAuto(const String &chatId, bool activar) {
@@ -128,11 +128,11 @@ void BotTelegram::cmdAuto(const String &chatId, bool activar) {
   if (activar) {
     bot.sendMessage(chatId, "🤖 Modo automático activado. El LED azul se enciende cuando el potenciómetro supera " +
                                 String(umbral, 2) + " V", "");
-    registrarComando("/autoon");
+    display.registrarComando("/autoon");
   } else {
-    digitalWrite(LED_AZUL, LOW);
+    ledAzul.apagar();
     bot.sendMessage(chatId, "✋ Modo manual activado. Los LEDs solo responden a comandos de Telegram.", "");
-    registrarComando("/autooff");
+    display.registrarComando("/autooff");
   }
 }
 
@@ -144,10 +144,10 @@ void BotTelegram::cmdThingUp(const String &chatId) {
     bot.sendMessage(chatId, "❌ Error leyendo el DHT22, no se envió nada.", "");
     return;
   }
-  if (enviarThingSpeak(temperatura, humedad)) {
+  if (nube.enviar(temperatura, humedad)) {
     bot.sendMessage(chatId, "☁️ Enviado a ThingSpeak: " + String(temperatura, 1) + " °C, " +
                                 String(humedad, 1) + " %", "");
-    registrarComando("/thingup");
+    display.registrarComando("/thingup");
   } else {
     bot.sendMessage(chatId, "❌ Falló el envío a ThingSpeak.", "");
   }
@@ -155,33 +155,32 @@ void BotTelegram::cmdThingUp(const String &chatId) {
 
 void BotTelegram::cmdDisplay(const String &chatId, const String &sub) {
   if (sub == "led") {
-    mostrarEnDisplay("Led verde " + estadoLed(LED_VERDE), "Led azul " + estadoLed(LED_AZUL));
+    display.mostrar("Led verde " + ledVerde.estado(), "Led azul " + ledAzul.estado());
   } else if (sub == "pot") {
-    mostrarEnDisplay("Pot: " + String(leerVoltajePot(), 2) + " V", "Umbral: " + String(umbral, 2) + " V");
+    display.mostrar("Pot: " + String(pot.leerVoltaje(), 2) + " V", "Umbral: " + String(umbral, 2) + " V");
   } else if (sub == "dht") {
     float temperatura = dht.temperatura();
     float humedad = dht.humedad();
     if (isnan(temperatura) || isnan(humedad)) {
-      mostrarEnDisplay("DHT22:", "error de lectura");
+      display.mostrar("DHT22:", "error de lectura");
     } else {
-      mostrarEnDisplay("Temp: " + String(temperatura, 1) + " C", "Hum: " + String(humedad, 1) + " %");
+      display.mostrar("Temp: " + String(temperatura, 1) + " C", "Hum: " + String(humedad, 1) + " %");
     }
   } else {
-    mostrarEnDisplay("Comando no", "identificado: " + sub);
+    display.mostrar("Comando no", "identificado: " + sub);
     bot.sendMessage(chatId, "⚠️ /display" + sub + " no es un comando identificado.", "");
     return;
   }
   bot.sendMessage(chatId, "🖥️ Mostrando en el display: " + sub, "");
-  registrarComando("/display" + sub);
+  display.registrarComando("/display" + sub);
 }
 
-void BotTelegram::cmdLed(const String &chatId, short pin, bool encender) {
-  if (modoAuto && pin == LED_AZUL) {
+void BotTelegram::cmdLed(const String &chatId, LedControl &led, const String &nombre, bool encender) {
+  if (modoAuto && &led == &ledAzul) {
     bot.sendMessage(chatId, "⚠️ El LED azul está en modo automático. Enviá /autooff primero.", "");
     return;
   }
-  digitalWrite(pin, encender ? HIGH : LOW);
-  String nombre = (pin == LED_VERDE) ? "verde" : "azul";
-  bot.sendMessage(chatId, "💡 LED " + nombre + " " + estadoLed(pin), "");
-  registrarComando("/" + nombre + (encender ? "on" : "off"));
+  encender ? led.encender() : led.apagar();
+  bot.sendMessage(chatId, "💡 LED " + nombre + " " + led.estado(), "");
+  display.display.registrarComando("/" + nombre + (encender ? "on" : "off"));
 }
