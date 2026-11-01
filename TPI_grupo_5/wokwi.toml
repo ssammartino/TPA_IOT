@@ -1,4 +1,10 @@
+<<<<<<< HEAD
 [wokwi] 
 version = 1 
 firmware = '.pio/build/esp32doit-devkit-v1/firmware.bin' 
+=======
+[wokwi]
+version = 1
+firmware = '.pio/build/esp32doit-devkit-v1/firmware.bin'
+>>>>>>> c6ef487ea186be15a5167ec01dcd7d3c9619679c
 elf = '.pio/build/esp32doit-devkit-v1/firmware.elf'

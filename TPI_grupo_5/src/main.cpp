@@ -6,8 +6,8 @@
 // put function declarations here:
 const short LED_VERDE = 23;
 const short LED_AZUL = 2;
-const char CHANNEL_TS = 3561793
-const char INTERVAL = 1000
+const short CHANNEL_TS = 3561793;
+const short INTERVAL = 1000;
 const char *SSID = "Wokwi-GUEST"; // Red WiFi
 const char *PASS = ""; 
 const char *API_KEY_TELEGRAM = "8931640257:AAHYxnhJPxTUbLoU6N5WyVL5yoZpiE8moMI";
