@@ -52,6 +52,7 @@ void setup() {
   nube.iniciar();
   if (conectarWiFi()) {
     telegramConectado = telegram.iniciar();
+    display.mostrar("WiFi conectado", telegramConectado ? "Telegram listo" : "Telegram pendiente");
   }
   ultimoIntento = millis();
   ultimaSubida = millis();
@@ -68,6 +69,7 @@ void loop() {
     ultimoIntento = millis();
     if (wifi.connected() || conectarWiFi()) {
       telegramConectado = telegram.iniciar();
+      display.mostrar("WiFi conectado", telegramConectado ? "Telegram listo" : "Telegram pendiente");
     }
   }
   if (telegramConectado) {
@@ -91,13 +93,16 @@ void inicializarPerifericos() {
 }
 
 bool conectarWiFi() {
+  display.mostrar("Conectando a WiFi...", "");
   Serial.println("Conectando a WiFi...");
   if (!wifi.connect()) {
     Serial.println("No se pudo conectar a WiFi. Se reintentara.");
+    display.mostrar("Conexion fallida", "a WiFi");
     return false;
   }
   Serial.println("WiFi conectado. IP:");
   Serial.println(wifi.localIP());
+  display.mostrar("Conexion exitosa", "a WiFi");
   return true;
 }
 
