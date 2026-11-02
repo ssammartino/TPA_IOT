@@ -1,14 +1,14 @@
-#include "ThingSpeak.h"
+#include "ClienteThingSpeak.h"
 
-ThingSpeak::ThingSpeak(unsigned long canal, const char *apiKey,
+ClienteThingSpeak::ClienteThingSpeak(unsigned long canal, const char *apiKey,
                                      unsigned long minEntreEnvios)
     : _canal(canal), _apiKey(apiKey), _minEntreEnvios(minEntreEnvios) {}
 
-void ThingSpeak::iniciar() {
+void ClienteThingSpeak::iniciar() {
   ThingSpeak.begin(_client);
 }
 
-bool ThingSpeak::enviar(float temperatura, float humedad) {
+bool ClienteThingSpeak::enviar(float temperatura, float humedad) {
   if (_huboEnvio && millis() - _ultimoEnvio < _minEntreEnvios) return false;
 
   ThingSpeak.setField(1, temperatura);

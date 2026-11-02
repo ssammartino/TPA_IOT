@@ -9,7 +9,7 @@
 #include "ControlLed.h"
 #include "Display.h"
 #include "Potenciometro.h"
-#include "ThingSpeak.h"
+#include "ClienteThingSpeak.h"
 
 
 // Estas funciones siguen definidas en main.cpp, como en el archivo original.
@@ -24,7 +24,7 @@ class BotTelegram {
   public:
     BotTelegram(const char *token, SensorDHT &sensor, Potenciometro &pot,
                 ControlLed &ledVerde, ControlLed &ledAzul,
-                Display &display, ThingSpeak &thingspeak,
+                Display &display, ClienteThingSpeak &thingspeak,
                 float &umbralActual, bool &automatico);
     void iniciar();
     void actualizar();
@@ -40,8 +40,6 @@ class BotTelegram {
     ClienteThingSpeak &thingspeak;
     float &umbral;
     bool &modoAuto;
-    short LED_VERDE;
-    short LED_AZUL;
     unsigned long ant = 0;
     const short INTERVAL = 1000;
     const float UMBRAL_MIN = 1.0;

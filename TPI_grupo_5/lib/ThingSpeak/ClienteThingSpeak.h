@@ -5,10 +5,10 @@
 #include <WiFi.h>
 #include <ThingSpeak.h>
 
-class ThingSpeak {
+class ClienteThingSpeak {
   public:
-    ThingSpeak(unsigned long canal, const char *apiKey,
-                       unsigned long minEntreEnvios = 15000);
+    ClienteThingSpeak(unsigned long canal, const char *apiKey,
+                      unsigned long minEntreEnvios = 15000);
     void iniciar();
     bool enviar(float temperatura, float humedad);
 

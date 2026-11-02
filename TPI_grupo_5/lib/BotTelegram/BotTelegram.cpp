@@ -1,13 +1,12 @@
 #include "BotTelegram.h"
 
-BotTelegram::BotTelegram(const char *token, SensorDHT &sensor,
-                         float &umbralActual, bool &automatico,
-                         short pinVerde, short pinAzul)
-    : bot(token, client), dht(sensor), umbral(umbralActual),
-      modoAuto(automatico) {
-  ledVerde, "verde" = pinVerde;
-  LED_AZUL = pinAzul;
-}
+BotTelegram::BotTelegram(const char *token, SensorDHT &sensor, Potenciometro &pot,
+                          ControlLed &ledVerde, ControlLed &ledAzul,
+                          Display &display, ClienteThingSpeak &thingspeak,
+                          float &umbralActual, bool &automatico)
+    : bot(token, client), dht(sensor), pot(pot), ledVerde(ledVerde),
+      ledAzul(ledAzul), display(display), thingspeak(thingspeak),
+      umbral(umbralActual), modoAuto(automatico) {}
 
 void BotTelegram::iniciar() {
   client.setCACert(TELEGRAM_CERTIFICATE_ROOT);
@@ -25,7 +24,7 @@ void BotTelegram::actualizar() {
   }
 }
 
-// ================= Bot de Telegram =================
+// Aca procesa mensajes, con un ciclo for, donde separa id del chat del mensaje, y envia ambos a procesarComando
 void BotTelegram::procesarMensajes(int cantidad) {
   for (int i = 0; i < cantidad; i++) {
     String chatId = bot.messages[i].chat_id;
@@ -36,6 +35,7 @@ void BotTelegram::procesarMensajes(int cantidad) {
   }
 }
 
+//Aca es donde deriva a la funcion, fijarse si se puede hacer con un case-switch
 void BotTelegram::procesarComando(const String &chatId, const String &texto) {
   if (texto == "/start") {
     cmdStart(chatId);
@@ -64,6 +64,7 @@ void BotTelegram::procesarComando(const String &chatId, const String &texto) {
   }
 }
 
+//Muestra menú de comandos
 void BotTelegram::cmdStart(const String &chatId) {
   String menu = "🤖 <b>TPI Grupo 5 - ESP32</b>\n\n";
   menu += "📊 <b>Monitoreo</b>\n";
@@ -86,6 +87,7 @@ void BotTelegram::cmdStart(const String &chatId) {
   display.registrarComando("/start");
 }
 
+//Para asignar un umbral(?
 void BotTelegram::cmdUmbral(const String &chatId, const String &texto) {
   String valor = texto.substring(7);
   valor.trim();
@@ -103,6 +105,7 @@ void BotTelegram::cmdUmbral(const String &chatId, const String &texto) {
   display.registrarComando("/umbral " + String(umbral, 2));
 }
 
+//Para corroborar el estado de todo lo que pide: Temperatura, Humedad, Potenciomentro, Umbral, LEDs y el modo
 void BotTelegram::cmdEstado(const String &chatId) {
   float temperatura = dht.temperatura();
   float humedad = dht.humedad();
@@ -123,6 +126,7 @@ void BotTelegram::cmdEstado(const String &chatId) {
   display.registrarComando("/estado");
 }
 
+//Para activar o desactivar el modo automatico
 void BotTelegram::cmdAuto(const String &chatId, bool activar) {
   modoAuto = activar;
   if (activar) {
@@ -136,6 +140,7 @@ void BotTelegram::cmdAuto(const String &chatId, bool activar) {
   }
 }
 
+//Para enviar temperatura y humedad al canal thingspeak
 void BotTelegram::cmdThingUp(const String &chatId) {
   float temperatura = dht.temperatura();
   float humedad = dht.humedad();
@@ -144,7 +149,7 @@ void BotTelegram::cmdThingUp(const String &chatId) {
     bot.sendMessage(chatId, "❌ Error leyendo el DHT22, no se envió nada.", "");
     return;
   }
-  if (nube.enviar(temperatura, humedad)) {
+  if (thingspeak.enviar(temperatura, humedad)) {
     bot.sendMessage(chatId, "☁️ Enviado a ThingSpeak: " + String(temperatura, 1) + " °C, " +
                                 String(humedad, 1) + " %", "");
     display.registrarComando("/thingup");
@@ -153,6 +158,8 @@ void BotTelegram::cmdThingUp(const String &chatId) {
   }
 }
 
+
+//Para mostrar cosas por el display
 void BotTelegram::cmdDisplay(const String &chatId, const String &sub) {
   if (sub == "led") {
     display.mostrar("Led verde " + ledVerde.estado(), "Led azul " + ledAzul.estado());
@@ -175,12 +182,13 @@ void BotTelegram::cmdDisplay(const String &chatId, const String &sub) {
   display.registrarComando("/display" + sub);
 }
 
-void BotTelegram::cmdLed(const String &chatId, LedControl &led, const String &nombre, bool encender) {
-  if (modoAuto && &led == &ledAzul) {
+//Para cambiar el led a on u off
+void BotTelegram::cmdLed(const String &chatId, ControlLed &led, const String &nombre, bool encender) {
+  if(modoAuto && &led == &ledAzul){
     bot.sendMessage(chatId, "⚠️ El LED azul está en modo automático. Enviá /autooff primero.", "");
     return;
   }
   encender ? led.encender() : led.apagar();
   bot.sendMessage(chatId, "💡 LED " + nombre + " " + led.estado(), "");
-  display.display.registrarComando("/" + nombre + (encender ? "on" : "off"));
+  display.registrarComando("/" + nombre + (encender ? "on" : "off"));
 }
