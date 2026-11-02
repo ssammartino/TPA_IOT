@@ -1,7 +1,11 @@
 #include "BotTelegram.h"
 #include <time.h>
 
-BotTelegram::BotTelegram(const char *token) : bot(token, client) {}
+BotTelegram::BotTelegram(const char *token, SensorDHT &sensor, Potenciometro &pot,
+                         ControlLed &ledVerde, ControlLed &ledAzul, Display &display,
+                         ClienteThingSpeak &thingspeak, float &umbralActual, bool &automatico)
+    : bot(token, client), dht(sensor), pot(pot), ledVerde(ledVerde), ledAzul(ledAzul),
+      display(display), thingspeak(thingspeak), umbral(umbralActual), modoAuto(automatico) {}
 
 bool BotTelegram::iniciar() {
   if (WiFi.status() != WL_CONNECTED) {
@@ -52,16 +56,194 @@ void BotTelegram::actualizar() {
     cantidad = bot.getUpdates(bot.last_message_received + 1);
   }
 }
-
 void BotTelegram::procesarMensajes(int cantidad) {
   for (int i = 0; i < cantidad; i++) {
     const String chatId = bot.messages[i].chat_id;
-    const String texto = bot.messages[i].text;
+    String texto = bot.messages[i].text;
+    texto.trim();
     Serial.println("Mensaje recibido: " + texto);
+    procesarComando(chatId, texto);
+  }
+}
 
-    // Prueba de ida y vuelta del ejemplo EchoBot incluido en el material.
-    if (!bot.sendMessage(chatId, texto, "")) {
-      Serial.println("No se pudo responder al mensaje de Telegram.");
+void BotTelegram::procesarComando(const String &chatId, const String &texto) {
+  bool exitoso = false;
+  if (texto == "/start") {
+    cmdStart(chatId);
+    exitoso = true;
+  } else if (texto == "/umbral" || texto.startsWith("/umbral ")) {
+    exitoso = cmdUmbral(chatId, texto);
+  } else if (texto == "/estado") {
+    exitoso = cmdEstado(chatId);
+  } else if (texto == "/autoon") {
+    cmdAuto(chatId, true);
+    exitoso = true;
+  } else if (texto == "/autooff") {
+    cmdAuto(chatId, false);
+    exitoso = true;
+  } else if (texto == "/thingup") {
+    exitoso = cmdThingUp(chatId);
+  } else if (texto.startsWith("/display")) {
+    String sub = texto.substring(8);
+    sub.trim();
+    exitoso = cmdDisplay(chatId, sub);
+  } else if (texto == "/verdeon") {
+    exitoso = cmdLed(chatId, ledVerde, "verde", true);
+  } else if (texto == "/verdeoff") {
+    exitoso = cmdLed(chatId, ledVerde, "verde", false);
+  } else if (texto == "/azulon") {
+    exitoso = cmdLed(chatId, ledAzul, "azul", true);
+  } else if (texto == "/azuloff") {
+    exitoso = cmdLed(chatId, ledAzul, "azul", false);
+  } else {
+    bot.sendMessage(chatId, "❓ Comando no reconocido. Enviá /start para ver el menú.", "");
+  }
+
+  // Los errores y comandos desconocidos no ingresan al historial visual.
+  if (exitoso) {
+    display.registrarComando(texto);
+  }
+}
+
+void BotTelegram::cmdStart(const String &chatId) {
+  String menu = "🤖 <b>TPI Grupo 5 - ESP32</b>\n\n";
+  menu += "📊 <b>Monitoreo</b>\n";
+  menu += "/estado - Temperatura, humedad, potenciómetro y LEDs\n\n";
+  menu += "⚙️ <b>Control automático</b>\n";
+  menu += "/umbral &lt;valor&gt; - Umbral entre 1 y 1.5 V (defecto 0.5 V)\n";
+  menu += "/autoon - Toma el voltaje actual como referencia y activa el modo automatico\n";
+  menu += "/autooff - Pasa a modo manual\n\n";
+  menu += "💡 <b>Control manual</b>\n";
+  menu += "/verdeon - /verdeoff - LED verde\n";
+  menu += "/azulon - /azuloff - LED azul\n\n";
+  menu += "☁️ <b>Nube</b>\n";
+  menu += "/thingup - Envía temperatura y humedad a ThingSpeak\n\n";
+  menu += "Tambien se envian automaticamente cada 20 s cuando hay conexion.\n\n";
+  menu += "🖥️ <b>Display OLED</b>\n";
+  menu += "/displayled - Estado de los LEDs\n";
+  menu += "/displaypot - Voltaje del potenciómetro\n";
+  menu += "/displaydht - Temperatura y humedad\n\n";
+  menu += "✍️ <i>Escribí los comandos como texto plano.</i>";
+  bot.sendMessage(chatId, menu, "HTML");
+}
+
+bool BotTelegram::cmdUmbral(const String &chatId, const String &texto) {
+  String valor = texto.substring(7);
+  valor.trim();
+  valor.replace(',', '.');
+
+  // toFloat acepta prefijos numericos: se comprueba primero todo el argumento.
+  bool formatoValido = valor.length() > 0;
+  bool tieneDigitos = false;
+  bool tienePunto = false;
+  for (unsigned int i = 0; i < valor.length(); i++) {
+    const char c = valor.charAt(i);
+    if (c >= '0' && c <= '9') {
+      tieneDigitos = true;
+    } else if (c == '.' && !tienePunto) {
+      tienePunto = true;
+    } else if (i == 0 && (c == '+' || c == '-')) {
+      // El rango se comprueba despues de convertir.
+    } else {
+      formatoValido = false;
     }
   }
+  const float nuevo = valor.toFloat();
+  if (formatoValido && tieneDigitos && nuevo >= UMBRAL_MIN && nuevo <= UMBRAL_MAX) {
+    umbral = nuevo;
+    bot.sendMessage(chatId, "Umbral asignado: " + String(umbral, 2) + " V", "");
+    return true;
+  }
+  umbral = UMBRAL_DEFECTO;
+  bot.sendMessage(chatId, "Valor invalido o fuera de rango [1; 1.5] V. Umbral restablecido a 0.5 V.", "");
+  return false;
+}
+
+bool BotTelegram::cmdEstado(const String &chatId) {
+  float temperatura = dht.temperatura();
+  float humedad = dht.humedad();
+
+  String msg = "📊 <b>Estado actual</b>\n\n";
+  if (isnan(temperatura) || isnan(humedad)) {
+    msg += "🌡️ DHT22: error de lectura\n";
+  } else {
+    msg += "🌡️ Temperatura: " + String(temperatura, 1) + " °C\n";
+    msg += "💧 Humedad: " + String(humedad, 1) + " %\n";
+  }
+  msg += "🎚️ Potenciómetro: " + String(pot.leerVoltaje(), 2) + " V\n";
+  msg += "📏 Umbral: " + String(umbral, 2) + " V\n";
+  msg += "🟢 LED verde: " + ledVerde.estado() + "\n";
+  msg += "🔵 LED azul: " + ledAzul.estado() + "\n";
+  msg += "⚙️ Modo: " + String(modoAuto ? "automático" : "manual");
+  bot.sendMessage(chatId, msg, "HTML");
+  return !isnan(temperatura) && !isnan(humedad);
+}
+
+void BotTelegram::cmdAuto(const String &chatId, bool activar) {
+  if (activar) {
+    umbral = pot.leerVoltaje();
+    modoAuto = true;
+    ledAzul.apagar();
+    bot.sendMessage(chatId, "Modo automatico activado. Referencia tomada del potenciometro: " +
+                    String(umbral, 2) + " V. /umbral permite ajustarla.", "");
+  } else {
+    modoAuto = false;
+    ledAzul.apagar();
+    bot.sendMessage(chatId, "Modo manual activado. Los LEDs responden a comandos de Telegram.", "");
+  }
+}
+
+bool BotTelegram::cmdThingUp(const String &chatId) {
+  const float temperatura = dht.temperatura();
+  const float humedad = dht.humedad();
+  if (isnan(temperatura) || isnan(humedad)) {
+    bot.sendMessage(chatId, "Error leyendo el DHT22, no se enviaron datos.", "");
+    return false;
+  }
+  if (!thingspeak.disponible()) {
+    const unsigned long segundos = (thingspeak.esperaRestante() + 999) / 1000;
+    bot.sendMessage(chatId, "Espera " + String(segundos) + " s antes de otro envio a ThingSpeak.", "");
+    return false;
+  }
+  if (!thingspeak.enviar(temperatura, humedad)) {
+    bot.sendMessage(chatId, "Fallo el envio a ThingSpeak. Codigo: " + String(thingspeak.ultimoCodigo()), "");
+    return false;
+  }
+  bot.sendMessage(chatId, "Enviado a ThingSpeak: " + String(temperatura, 1) + " C, " +
+                  String(humedad, 1) + " %", "");
+  return true;
+}
+
+bool BotTelegram::cmdDisplay(const String &chatId, const String &sub) {
+  if (sub == "led") {
+    display.mostrar("Led verde " + ledVerde.estado(), "Led azul " + ledAzul.estado());
+  } else if (sub == "pot") {
+    display.mostrar("Pot: " + String(pot.leerVoltaje(), 2) + " V", "Umbral: " + String(umbral, 2) + " V");
+  } else if (sub == "dht") {
+    float temperatura = dht.temperatura();
+    float humedad = dht.humedad();
+    if (isnan(temperatura) || isnan(humedad)) {
+      display.mostrar("DHT22:", "error de lectura");
+      bot.sendMessage(chatId, "No se pudo leer el DHT22.", "");
+      return false;
+    } else {
+      display.mostrar("Temp: " + String(temperatura, 1) + " C", "Hum: " + String(humedad, 1) + " %");
+    }
+  } else {
+    display.mostrar("Comando no", "identificado: " + sub);
+    bot.sendMessage(chatId, "⚠️ /display" + sub + " no es un comando identificado.", "");
+    return false;
+  }
+  bot.sendMessage(chatId, "🖥️ Mostrando en el display: " + sub, "");
+  return true;
+}
+
+bool BotTelegram::cmdLed(const String &chatId, ControlLed &led, const String &nombre, bool encender) {
+  if (modoAuto && &led == &ledAzul) {
+    bot.sendMessage(chatId, "⚠️ El LED azul está en modo automático. Enviá /autooff primero.", "");
+    return false;
+  }
+  encender ? led.encender() : led.apagar();
+  bot.sendMessage(chatId, "💡 LED " + nombre + " " + led.estado(), "");
+  return true;
 }
