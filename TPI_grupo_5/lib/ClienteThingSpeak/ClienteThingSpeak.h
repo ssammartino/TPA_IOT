@@ -21,6 +21,8 @@ class ClienteThingSpeak {
     unsigned long esperaRestante() const;
     // Código de resultado del último envío (200 = OK; negativos = error).
     int ultimoCodigo() const;
+    // Resetea el temporizador para permitir un envío inmediato (usado por /thingup).
+    void forzarDisponible();
 
   private:
     WiFiClient _client;

@@ -26,6 +26,11 @@ int ClienteThingSpeak::ultimoCodigo() const {
   return _ultimoCodigo;
 }
 
+// Permite saltar el tiempo de espera para el próximo envío.
+void ClienteThingSpeak::forzarDisponible() {
+  _huboIntento = false;
+}
+
 bool ClienteThingSpeak::enviar(float temperatura, float humedad) {
   // Antes de enviar se valida todo; si algo falla se guarda un código de error
   // de la librería ThingSpeak para poder informarlo.

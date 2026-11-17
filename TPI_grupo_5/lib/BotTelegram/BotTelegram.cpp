@@ -212,7 +212,7 @@ void BotTelegram::cmdAuto(const String &chatId, bool activar) {
   }
 }
 
-// /thingup: envío manual a ThingSpeak, respetando el tiempo mínimo entre envíos.
+// /thingup: envío manual forzado a ThingSpeak (salta el tiempo de espera).
 bool BotTelegram::cmdThingUp(const String &chatId) {
   const float temperatura = dht.temperatura();
   const float humedad = dht.humedad();
@@ -220,12 +220,8 @@ bool BotTelegram::cmdThingUp(const String &chatId) {
     bot.sendMessage(chatId, "Error leyendo el DHT22, no se enviaron datos.", "");
     return false;
   }
-  if (!thingspeak.disponible()) {
-    // Convierte ms a segundos redondeando hacia arriba.
-    const unsigned long segundos = (thingspeak.esperaRestante() + 999) / 1000;
-    bot.sendMessage(chatId, "Espera " + String(segundos) + " s antes de otro envio a ThingSpeak.", "");
-    return false;
-  }
+  // Fuerza la disponibilidad para que el comando siempre envíe sin esperar.
+  thingspeak.forzarDisponible();
   if (!thingspeak.enviar(temperatura, humedad)) {
     bot.sendMessage(chatId, "Fallo el envio a ThingSpeak. Codigo: " + String(thingspeak.ultimoCodigo()), "");
     return false;
