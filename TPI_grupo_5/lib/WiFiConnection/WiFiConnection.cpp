@@ -8,7 +8,7 @@ bool WifiConnection::connect(uint32_t timeoutMs) {
   WiFi.mode(WIFI_STA);
   WiFi.begin(_ssid, _password);
 
-  // Como en las prácticas, pero con timeout
+  // Espera a que conecte; si pasa timeoutMs, se rinde
   const uint32_t startedAt = millis();
   while (WiFi.status() != WL_CONNECTED) {
     if (millis() - startedAt >= timeoutMs) {

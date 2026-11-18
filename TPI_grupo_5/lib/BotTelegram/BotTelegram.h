@@ -11,7 +11,7 @@
 #include "Display.h"
 #include "ClienteThingSpeak.h"
 
-// Bot de Telegram (Práctica 6). Guarda referencias a los objetos de main.cpp
+// Bot de Telegram. Guarda referencias a los objetos de main.cpp
 // para manejar los mismos LEDs, sensores, etc.
 class BotTelegram {
 public:

@@ -5,7 +5,7 @@
 #include <WiFi.h>
 #include <ThingSpeak.h>
 
-// Sube temperatura y humedad a ThingSpeak (Práctica 7). Mínimo 15 s entre envíos.
+// Sube temperatura y humedad a ThingSpeak, con mínimo 15 s entre envíos.
 class ClienteThingSpeak {
   public:
     ClienteThingSpeak(unsigned long canal, const char *apiKey,

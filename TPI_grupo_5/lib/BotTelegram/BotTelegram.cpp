@@ -46,7 +46,7 @@ bool BotTelegram::iniciar() {
   return true;
 }
 
-// Igual que en la Práctica 6
+// Cada 1 s pide mensajes nuevos y los procesa hasta que no quede ninguno
 void BotTelegram::actualizar() {
   if (WiFi.status() != WL_CONNECTED || millis() - ant < INTERVAL) {
     return;
