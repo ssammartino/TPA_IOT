@@ -3,9 +3,7 @@
 
 #include <WiFi.h>
 
-// Conexión del ESP32 a una red WiFi (Prácticas 4 a 7).
-// A diferencia de las prácticas, connect() no espera para siempre: si no se
-// conecta en timeoutMs devuelve false, y main.cpp lo reintenta más tarde.
+// connect() se rinde después de timeoutMs en vez de quedarse colgado
 class WifiConnection {
 public:
   WifiConnection(const char* ssid, const char* password);

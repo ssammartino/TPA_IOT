@@ -4,15 +4,13 @@
 #include <Arduino.h>
 #include <DHT.h>
 
-// Envoltorio del sensor DHT22 (temperatura y humedad), como en la Práctica 7.
-// Si la lectura falla, temperatura() y humedad() devuelven NaN: hay que
-// comprobarlo con isnan() antes de usar el valor.
+// Si la lectura falla devuelve NaN, revisar con isnan()
 class SensorDHT {
   public:
     SensorDHT(short pin);
     void iniciar();
-    float temperatura();   // En grados Celsius
-    float humedad();       // Humedad relativa en %
+    float temperatura();   // °C
+    float humedad();       // %
 
   private:
     DHT sensor;

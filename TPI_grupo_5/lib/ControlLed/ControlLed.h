@@ -3,7 +3,6 @@
 
 #include <Arduino.h>
 
-// Maneja un LED conectado a un pin digital (pinMode + digitalWrite, como en la Práctica 1).
 class ControlLed {
   public:
     ControlLed(short pin);
@@ -11,7 +10,7 @@ class ControlLed {
     void encender();
     void apagar();
     bool estaEncendido() const;
-    String estado() const;   // "encendido" / "apagado", listo para mostrar
+    String estado() const;   // "encendido" / "apagado"
 
   private:
     short _pin;

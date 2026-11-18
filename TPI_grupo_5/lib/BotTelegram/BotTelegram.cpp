@@ -1,8 +1,6 @@
 #include "BotTelegram.h"
 #include <time.h>
 
-// Constructor: solo guarda las referencias recibidas (lista de inicialización).
-// El bot se crea con el token y el cliente seguro, como en la Práctica 6.
 BotTelegram::BotTelegram(const char *token, SensorDHT &sensor, Potenciometro &pot,
                          ControlLed &ledVerde, ControlLed &ledAzul, Display &display,
                          ClienteThingSpeak &thingspeak, float &umbralActual, bool &automatico)
@@ -14,11 +12,10 @@ bool BotTelegram::iniciar() {
     return false;
   }
 
-  // Certificado raíz de Telegram para validar la conexión HTTPS (igual que en la Práctica 6).
+  // Certificado raíz de Telegram
   client.setCACert(TELEGRAM_CERTIFICATE_ROOT);
 
-  // EchoBot sincroniza la hora para validar el certificado HTTPS.
-  // Se espera como máximo 15 s a que el reloj tenga una fecha real.
+  // Hace falta la hora real para validar el certificado (espera hasta 15 s)
   configTime(0, 0, "pool.ntp.org");
   const unsigned long inicio = millis();
   while (time(nullptr) < 24 * 3600) {
@@ -29,13 +26,13 @@ bool BotTelegram::iniciar() {
     delay(100);
   }
 
-  // getMe() prueba que el token sea válido y que Telegram responda.
+  // Prueba que el token funcione
   if (!bot.getMe()) {
     Serial.println("No se pudo conectar con Telegram. Revisar token y acceso a Internet.");
     return false;
   }
 
-  // Al arrancar se omiten mensajes viejos; las reconexiones conservan pendientes.
+  // La primera vez descartamos los mensajes viejos
   if (primeraConexion) {
     int pendientes = bot.getUpdates(bot.last_message_received + 1);
     while (pendientes > 0) {
@@ -49,8 +46,7 @@ bool BotTelegram::iniciar() {
   return true;
 }
 
-// Mismo esquema que el loop() de la Práctica 6: cada INTERVAL ms pide los
-// mensajes nuevos y los procesa hasta que no quede ninguno pendiente.
+// Igual que en la Práctica 6
 void BotTelegram::actualizar() {
   if (WiFi.status() != WL_CONNECTED || millis() - ant < INTERVAL) {
     return;
@@ -63,7 +59,7 @@ void BotTelegram::actualizar() {
     cantidad = bot.getUpdates(bot.last_message_received + 1);
   }
 }
-// Recorre los mensajes recibidos; trim() quita espacios y saltos de línea sobrantes.
+
 void BotTelegram::procesarMensajes(int cantidad) {
   for (int i = 0; i < cantidad; i++) {
     const String chatId = bot.messages[i].chat_id;
@@ -74,7 +70,6 @@ void BotTelegram::procesarMensajes(int cantidad) {
   }
 }
 
-// Decide qué hacer según el texto recibido y llama al método del comando.
 void BotTelegram::procesarComando(const String &chatId, const String &texto) {
   bool exitoso = false;
   if (texto == "/start") {
@@ -93,7 +88,7 @@ void BotTelegram::procesarComando(const String &chatId, const String &texto) {
   } else if (texto == "/thingup") {
     exitoso = cmdThingUp(chatId);
   } else if (texto.startsWith("/display")) {
-    // substring(8) se queda con lo que viene después de "/display" (8 caracteres): led, pot o dht.
+    // lo que viene después de "/display": led, pot o dht
     String sub = texto.substring(8);
     sub.trim();
     exitoso = cmdDisplay(chatId, sub);
@@ -109,14 +104,13 @@ void BotTelegram::procesarComando(const String &chatId, const String &texto) {
     bot.sendMessage(chatId, "❓ Comando no reconocido. Enviá /start para ver el menú.", "");
   }
 
-  // Los errores y comandos desconocidos no ingresan al historial visual.
+  // Solo los comandos que salieron bien van al historial
   if (exitoso) {
     display.registrarComando(texto);
   }
 }
 
-// /start: envía el menú de comandos. Se usa formato HTML (<b>, <i>), por eso
-// los signos < y > del texto se escriben como &lt; y &gt;.
+// Menú en HTML, por eso < y > van como &lt; y &gt;
 void BotTelegram::cmdStart(const String &chatId) {
   String menu = "🤖 <b>TPI Grupo 5 - ESP32</b>\n\n";
   menu += "📊 <b>Monitoreo</b>\n";
@@ -139,16 +133,14 @@ void BotTelegram::cmdStart(const String &chatId) {
   bot.sendMessage(chatId, menu, "HTML");
 }
 
-// /umbral <valor>: cambia el umbral si el valor es un número entre 1 y 1.5 V.
-// Si no es válido, vuelve al valor por defecto (0.5 V).
+// Acepta entre 1 y 1.5 V; si no, vuelve a 0.5 V
 bool BotTelegram::cmdUmbral(const String &chatId, const String &texto) {
-  // substring(7) quita "/umbral" y deja solo el número. Se acepta coma decimal.
+  // Saca "/umbral" y acepta coma decimal
   String valor = texto.substring(7);
   valor.trim();
   valor.replace(',', '.');
 
-  // toFloat acepta prefijos numericos: se comprueba primero todo el argumento.
-  // (por ejemplo "1.2abc" daría 1.2, así que se revisa carácter por carácter).
+  // toFloat("1.2abc") da 1.2, así que revisamos carácter por carácter
   bool formatoValido = valor.length() > 0;
   bool tieneDigitos = false;
   bool tienePunto = false;
@@ -159,7 +151,7 @@ bool BotTelegram::cmdUmbral(const String &chatId, const String &texto) {
     } else if (c == '.' && !tienePunto) {
       tienePunto = true;
     } else if (i == 0 && (c == '+' || c == '-')) {
-      // El rango se comprueba despues de convertir.
+      // signo al principio, ok
     } else {
       formatoValido = false;
     }
@@ -175,7 +167,6 @@ bool BotTelegram::cmdUmbral(const String &chatId, const String &texto) {
   return false;
 }
 
-// /estado: arma un resumen con todas las lecturas y estados y lo envía.
 bool BotTelegram::cmdEstado(const String &chatId) {
   float temperatura = dht.temperatura();
   float humedad = dht.humedad();
@@ -196,8 +187,7 @@ bool BotTelegram::cmdEstado(const String &chatId) {
   return !isnan(temperatura) && !isnan(humedad);
 }
 
-// /autoon y /autooff. Al activar, el voltaje actual del potenciómetro pasa a ser el umbral.
-// En ambos casos se apaga el LED azul para empezar desde un estado conocido.
+// /autoon usa el voltaje actual del pot como umbral
 void BotTelegram::cmdAuto(const String &chatId, bool activar) {
   if (activar) {
     umbral = pot.leerVoltaje();
@@ -212,7 +202,7 @@ void BotTelegram::cmdAuto(const String &chatId, bool activar) {
   }
 }
 
-// /thingup: envío manual forzado a ThingSpeak (salta el tiempo de espera).
+// Envío manual, sin esperar los 15 s
 bool BotTelegram::cmdThingUp(const String &chatId) {
   const float temperatura = dht.temperatura();
   const float humedad = dht.humedad();
@@ -220,7 +210,6 @@ bool BotTelegram::cmdThingUp(const String &chatId) {
     bot.sendMessage(chatId, "Error leyendo el DHT22, no se enviaron datos.", "");
     return false;
   }
-  // Fuerza la disponibilidad para que el comando siempre envíe sin esperar.
   thingspeak.forzarDisponible();
   if (!thingspeak.enviar(temperatura, humedad)) {
     bot.sendMessage(chatId, "Fallo el envio a ThingSpeak. Codigo: " + String(thingspeak.ultimoCodigo()), "");
@@ -231,7 +220,6 @@ bool BotTelegram::cmdThingUp(const String &chatId) {
   return true;
 }
 
-// /displayled, /displaypot, /displaydht: muestra el dato pedido en la parte superior del OLED.
 bool BotTelegram::cmdDisplay(const String &chatId, const String &sub) {
   if (sub == "led") {
     display.mostrar("Led verde " + ledVerde.estado(), "Led azul " + ledAzul.estado());
@@ -256,10 +244,8 @@ bool BotTelegram::cmdDisplay(const String &chatId, const String &sub) {
   return true;
 }
 
-// Enciende o apaga el LED indicado. El LED azul no se puede tocar a mano
-// mientras está en modo automático (lo controla el potenciómetro).
 bool BotTelegram::cmdLed(const String &chatId, ControlLed &led, const String &nombre, bool encender) {
-  // &led == &ledAzul compara direcciones de memoria: ¿es el mismo objeto LED azul?
+  // En modo auto el LED azul lo maneja el pot
   if (modoAuto && &led == &ledAzul) {
     bot.sendMessage(chatId, "⚠️ El LED azul está en modo automático. Enviá /autooff primero.", "");
     return false;
