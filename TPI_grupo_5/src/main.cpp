@@ -45,8 +45,7 @@ ClienteThingSpeak nube(CHANNEL_TS, API_KEY_TS);
 // se ven acá directamente.
 float umbral = 0.5;
 bool modoAuto = false;
-BotTelegram telegram(API_KEY_TELEGRAM, sensor, pot, ledVerde, ledAzul,
-                     display, nube, umbral, modoAuto);
+BotTelegram telegram(API_KEY_TELEGRAM, sensor, pot, ledVerde, ledAzul, display, nube, umbral, modoAuto);
 
 // Última vez que se hizo cada tarea (millis)
 bool telegramConectado = false;

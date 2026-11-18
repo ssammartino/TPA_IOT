@@ -70,6 +70,7 @@ void BotTelegram::procesarMensajes(int cantidad) {
   }
 }
 
+// Procesa un comando de Telegram
 void BotTelegram::procesarComando(const String &chatId, const String &texto) {
   bool exitoso = false;
   if (texto == "/start") {
@@ -110,7 +111,7 @@ void BotTelegram::procesarComando(const String &chatId, const String &texto) {
   }
 }
 
-// Menú en HTML, por eso < y > van como &lt; y &gt;
+// Menú de opciones
 void BotTelegram::cmdStart(const String &chatId) {
   String menu = "🤖 <b>TPI Grupo 5 - ESP32</b>\n\n";
   menu += "📊 <b>Monitoreo</b>\n";
@@ -140,7 +141,7 @@ bool BotTelegram::cmdUmbral(const String &chatId, const String &texto) {
   valor.trim();
   valor.replace(',', '.');
 
-  // toFloat("1.2abc") da 1.2, así que revisamos carácter por carácter
+  // Validación del formato 
   bool formatoValido = valor.length() > 0;
   bool tieneDigitos = false;
   bool tienePunto = false;
@@ -171,6 +172,7 @@ bool BotTelegram::cmdEstado(const String &chatId) {
   float temperatura = dht.temperatura();
   float humedad = dht.humedad();
 
+  //mensaje de estado
   String msg = "📊 <b>Estado actual</b>\n\n";
   if (isnan(temperatura) || isnan(humedad)) {
     msg += "🌡️ DHT22: error de lectura\n";
